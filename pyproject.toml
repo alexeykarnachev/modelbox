@@ -14,6 +14,7 @@ dependencies = [
     "onnxruntime-gpu>=1.21.0",
     "onnxruntime>=1.21.0",
     "typer>=0.15.2",
+    "tritonclient[all]>=2.55.0",
 ]
 
 [project.scripts]

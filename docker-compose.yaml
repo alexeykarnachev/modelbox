@@ -1,0 +1,31 @@
+services:
+  triton-server:
+    image: nvcr.io/nvidia/tritonserver:24.12-py3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"  # HTTP endpoint
+      - "8001:8001"  # gRPC endpoint
+      - "8002:8002"  # Metrics endpoint
+    volumes:
+      - ./model_repository:/models
+    command: ["tritonserver", "--model-repository=/models"]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    shm_size: "1g"
+    restart: unless-stopped
+
+  triton-web-ui:
+    image: duyvd/triton-inference-server-web-ui
+    ports:
+      - "3000:3000"  # Web UI accessible at http://localhost:3000
+    environment:
+      - API_URL=http://triton-server:8000  # Points to Triton's HTTP endpoint
+    depends_on:
+      - triton-server
+    restart: unless-stopped

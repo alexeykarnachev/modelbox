@@ -16,8 +16,9 @@ app = typer.Typer()
 
 @app.command()
 def infer(
-    model_path: str = typer.Option(
-        "depth_pro.onnx", help="Path to the depth_pro.onnx model file"
+    onnx_file_path: str = typer.Option(
+        "model_repository/depth_pro/1/model.onnx",
+        help="Path to the depth_pro model onnx file",
     ),
     image_path: str = typer.Option(..., help="Path to the input image"),
     output_path: str = typer.Option("depth_map.png", help="Path to save the depth map"),
@@ -27,7 +28,7 @@ def infer(
     # Load model
     typer.echo(f"Loading model on {'gpu' if cuda else 'cpu'}")
     provider = "CUDAExecutionProvider" if cuda else "CPUExecutionProvider"
-    session = ort.InferenceSession(model_path, providers=[provider])
+    session = ort.InferenceSession(onnx_file_path, providers=[provider])
 
     # --------------------------------------------------------------------
     # Prepare input image

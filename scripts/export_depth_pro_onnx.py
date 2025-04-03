@@ -62,12 +62,14 @@ class DepthPro(nn.Module):
         canonical_inverse_depth = self.head(features)
 
         fov_deg = self.fov.forward(images, features_0.detach())
-
         deg = fov_deg.to(torch.float)
         rad = 3.141592 * deg / 180.0
         f_px = 0.5 * W / torch.tan(0.5 * rad)
-
         inverse_depth = canonical_inverse_depth * (W / f_px)
+
+        inverse_depth = inverse_depth.reshape(-1, 1536, 1536)
+        f_px = f_px.reshape(-1, 1)
+
         return inverse_depth, f_px
 
 
@@ -77,7 +79,8 @@ def export_to_onnx(
         "depth_pro.pt", help="Path to the input pt model file"
     ),
     onnx_file_path: Path = typer.Option(
-        "depth_pro.onnx", help="Path to the output onnx model file"
+        "model_repository/depth_pro/1/model.onnx",
+        help="Path to the output onnx model file",
     ),
     cuda: bool = typer.Option(False, help="Use cuda device for export"),
 ):
@@ -134,7 +137,7 @@ def export_to_onnx(
 
     # --------------------------------------------------------------------
     # Export model
-    images = torch.randn(1, 3, 1536, 1536, device=device, dtype=torch.half)
+    images = torch.randn(1, 3, 1536, 1536, device=device, dtype=torch.float16)
 
     torch.onnx.export(
         model,
@@ -142,13 +145,8 @@ def export_to_onnx(
         onnx_file_path,
         input_names=["images"],
         output_names=["depth", "f_px"],
-        dynamic_axes={
-            "images": {0: "batch_size"},
-            "f_px": {0: "batch_size"},
-            "depth": {0: "batch_size"},
-        },
         opset_version=19,
-        do_constant_folding=False,
+        do_constant_folding=True,
     )
 
 
