@@ -12,3 +12,4 @@ wheels/
 *.onnx
 *.png
 *.pt
+.env
