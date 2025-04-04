@@ -9,9 +9,9 @@ services:
               count: 1
               capabilities: [gpu]
     ports:
-      - "8000:8000"  # HTTP endpoint
-      - "8001:8001"  # gRPC endpoint
-      - "8002:8002"  # Metrics endpoint
+      - "8000:8000"  # HTTP
+      - "8001:8001"  # gRPC
+      - "8002:8002"  # Metrics
     volumes:
       - ./model_repository:/models
     command: ["tritonserver", "--model-repository=/models"]
@@ -23,9 +23,19 @@ services:
   triton-web-ui:
     image: duyvd/triton-inference-server-web-ui
     ports:
-      - "3000:3000"  # Web UI accessible at http://localhost:3000
+      - "3000:3000"
     environment:
-      - API_URL=http://triton-server:8000  # Points to Triton's HTTP endpoint
+      - API_URL=http://triton-server:8000
+    depends_on:
+      - triton-server
+    restart: unless-stopped
+
+  litestar-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8228:8228"
     depends_on:
       - triton-server
     restart: unless-stopped

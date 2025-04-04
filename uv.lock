@@ -840,32 +840,42 @@ name = "modelbox"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "depth-pro" },
-    { name = "huggingface-hub" },
     { name = "litestar" },
     { name = "loguru" },
-    { name = "onnx" },
-    { name = "onnxruntime" },
-    { name = "onnxruntime-gpu" },
+    { name = "pillow" },
     { name = "pydantic-settings" },
     { name = "tritonclient", extra = ["all"] },
     { name = "typer" },
     { name = "uvicorn" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "depth-pro" },
+    { name = "huggingface-hub" },
+    { name = "onnx" },
+    { name = "onnxruntime" },
+    { name = "onnxruntime-gpu" },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "depth-pro", git = "https://github.com/apple/ml-depth-pro" },
-    { name = "huggingface-hub", specifier = ">=0.30.1" },
     { name = "litestar", specifier = ">=2.15.1" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "onnx", specifier = ">=1.17.0" },
-    { name = "onnxruntime", specifier = ">=1.21.0" },
-    { name = "onnxruntime-gpu", specifier = ">=1.21.0" },
+    { name = "pillow", specifier = ">=11.1.0" },
     { name = "pydantic-settings", specifier = ">=2.8.1" },
     { name = "tritonclient", extras = ["all"], specifier = ">=2.55.0" },
     { name = "typer", specifier = ">=0.15.2" },
     { name = "uvicorn", specifier = ">=0.34.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "depth-pro", git = "https://github.com/apple/ml-depth-pro" },
+    { name = "huggingface-hub", specifier = ">=0.30.1" },
+    { name = "onnx", specifier = ">=1.17.0" },
+    { name = "onnxruntime", specifier = ">=1.21.0" },
+    { name = "onnxruntime-gpu", specifier = ">=1.21.0" },
 ]
 
 [[package]]
