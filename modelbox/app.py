@@ -1,12 +1,14 @@
+import base64
+import io
 from dataclasses import dataclass
 
 import numpy as np
 import tritonclient.grpc as grpcclient
 from litestar import Litestar, post
-from litestar.datastructures import UploadFile
-from litestar.enums import RequestEncodingType
 from litestar.params import Body
 from loguru import logger
+from PIL import Image
+from pydantic import BaseModel
 
 from modelbox.depth_pro_utils import post_process_depthmap, prepare_input_image
 from modelbox.settings import settings
@@ -18,18 +20,27 @@ class DepthProResult:
     f_px: float
 
 
+class Base64ImageRequest(BaseModel):
+    image: str
+
+
 @post("/infer_depth_pro", media_type="application/json")
 async def infer_depth_pro(
-    data: UploadFile = Body(media_type=RequestEncodingType.MULTI_PART),
+    data: Base64ImageRequest = Body(),
 ) -> DepthProResult:
-    logger.debug(f"Received file: {data.filename}")
+    logger.debug("Received base64 image")
     try:
+        # Decode base64 image
+        image_data = base64.b64decode(data.image)
+        pil_image = Image.open(io.BytesIO(image_data))
+        logger.debug(f"Decoded image size: {pil_image.size}")
+
         client = grpcclient.InferenceServerClient(
             url=settings.triton_url, verbose=False
         )
         logger.debug(f"Connected to Triton at {settings.triton_url}")
 
-        input_img, input_img_np = prepare_input_image(data.file)
+        input_img, input_img_np = prepare_input_image(pil_image)
         logger.debug(f"Input image prepared: {input_img_np.shape}")
 
         inputs = [grpcclient.InferInput("images", input_img_np.shape, "FP16")]

@@ -2,8 +2,8 @@ import numpy as np
 from PIL import Image
 
 
-def prepare_input_image(image_path):
-    input_img = Image.open(image_path).convert("RGB")
+def prepare_input_image(pil_image):
+    input_img = pil_image.convert("RGB")
     input_img_np = np.array(
         input_img.resize((1536, 1536), resample=Image.Resampling.BILINEAR)
     )
