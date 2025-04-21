@@ -16,7 +16,7 @@ from modelbox.settings import settings
 
 @dataclass
 class DepthProResult:
-    image: bytes
+    image: str  # Base64 encoded image
     f_px: float
 
 
@@ -60,7 +60,12 @@ async def infer_depth_pro(
         output_img = post_process_depthmap(output_depth_np, input_img)
         logger.debug("Depth map processed")
 
-        return DepthProResult(image=output_img.tobytes(), f_px=float(output_f_px_np))
+        # Convert output image to base64
+        buffer = io.BytesIO()
+        output_img.save(buffer, format="PNG")
+        buffer.seek(0)
+        base64_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return DepthProResult(image=base64_image, f_px=float(output_f_px_np))
     except Exception as e:
         logger.exception(f"Inference failed: {str(e)}")
         raise
