@@ -73,5 +73,5 @@ async def infer_depth_pro(
 
 app = Litestar(
     route_handlers=[infer_depth_pro],
-    request_body_max_size=100 * 1024 * 1024  # 100MB max request size
+    request_max_body_size=100 * 1024 * 1024  # 100MB max request size
 )
