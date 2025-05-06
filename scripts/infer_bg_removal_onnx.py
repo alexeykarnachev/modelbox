@@ -55,18 +55,20 @@ def infer(
     mask_img = mask_img.resize(
         (input_img.width, input_img.height), resample=Image.Resampling.BILINEAR
     )
-    
+
     # Convert mask to proper alpha channel format (0-255)
     mask_np = np.array(mask_img)
     # Normalize to 0-255 range
     if mask_np.max() > 0:  # Avoid division by zero
-        mask_np = (mask_np - mask_np.min()) / (mask_np.max() - mask_np.min() + 1e-6) * 255
+        mask_np = (
+            (mask_np - mask_np.min()) / (mask_np.max() - mask_np.min() + 1e-6) * 255
+        )
     mask_np = mask_np.astype(np.uint8)
-    
+
     # Apply mask as alpha channel
     result_img = input_img.copy()
     result_img.putalpha(Image.fromarray(mask_np))
-    
+
     # --------------------------------------------------------------------
     # Save output image
     result_img.save(output_path)

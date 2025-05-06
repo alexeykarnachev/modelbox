@@ -1,6 +1,3 @@
-import base64
-import io
-
 import numpy as np
 import tritonclient.grpc as grpcclient
 import typer

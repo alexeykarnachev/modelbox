@@ -10,6 +10,7 @@ def prepare_input_image(pil_image):
     input_img_np = (input_img_np / 255.0 - 0.5) / 0.5
     input_img_np = input_img_np.transpose(2, 0, 1)
     input_img_np = input_img_np[None, ...].astype(np.float16)
+
     return input_img, input_img_np
 
 
@@ -27,4 +28,5 @@ def post_process_depthmap(output_depth_np, input_img):
         / (output_img_np.max() - output_img_np.min() + 1e-6)
     )
     output_img_np = output_img_np.astype(np.uint8)
+
     return Image.fromarray(output_img_np).convert("RGB")
