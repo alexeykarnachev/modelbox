@@ -5,35 +5,46 @@ from dataclasses import dataclass
 import numpy as np
 import tritonclient.grpc as grpcclient
 from litestar import Litestar, post
+from litestar.datastructures import UploadFile
 from litestar.params import Body
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 
+from modelbox.bg_removal_utils import post_process_mask
+from modelbox.bg_removal_utils import \
+    prepare_input_image as prepare_bg_removal_image
 from modelbox.depth_pro_utils import post_process_depthmap, prepare_input_image
 from modelbox.settings import settings
 
 
 @dataclass
 class DepthProResult:
-    image: str  # Base64 encoded image
+    image: str
     f_px: float
 
 
-class Base64ImageRequest(BaseModel):
+@dataclass
+class BackgroundRemovalResult:
     image: str
+
+
+class ImageRequest(BaseModel):
+    image: UploadFile
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 @post("/infer_depth_pro", media_type="application/json")
 async def infer_depth_pro(
-    data: Base64ImageRequest = Body(),
+    data: ImageRequest = Body(media_type="multipart/form-data"),
 ) -> DepthProResult:
-    logger.debug("Received base64 image")
+    logger.debug("Received image file")
     try:
-        # Decode base64 image
-        image_data = base64.b64decode(data.image)
+        image_data = await data.image.read()
         pil_image = Image.open(io.BytesIO(image_data))
-        logger.debug(f"Decoded image size: {pil_image.size}")
+        logger.debug(f"Image size: {pil_image.size}")
 
         client = grpcclient.InferenceServerClient(
             url=settings.triton_url, verbose=False
@@ -60,18 +71,58 @@ async def infer_depth_pro(
         output_img = post_process_depthmap(output_depth_np, input_img)
         logger.debug("Depth map processed")
 
-        # Convert output image to base64
         buffer = io.BytesIO()
         output_img.save(buffer, format="PNG")
         buffer.seek(0)
-        base64_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
         return DepthProResult(image=base64_image, f_px=float(output_f_px_np))
     except Exception as e:
         logger.exception(f"Inference failed: {str(e)}")
         raise
 
 
+@post("/infer_bg_removal", media_type="application/json")
+async def infer_bg_removal(
+    data: ImageRequest = Body(media_type="multipart/form-data"),
+) -> BackgroundRemovalResult:
+    logger.debug("Received image file for background removal")
+    try:
+        image_data = await data.image.read()
+        pil_image = Image.open(io.BytesIO(image_data))
+        logger.debug(f"Image size: {pil_image.size}")
+
+        client = grpcclient.InferenceServerClient(
+            url=settings.triton_url, verbose=False
+        )
+        logger.debug(f"Connected to Triton at {settings.triton_url}")
+
+        input_img, input_img_np = prepare_bg_removal_image(pil_image)
+        logger.debug(f"Input image prepared: {input_img_np.shape}")
+
+        inputs = [grpcclient.InferInput("input", input_img_np.shape, "FP32")]
+        inputs[0].set_data_from_numpy(input_img_np)
+        outputs = [grpcclient.InferRequestedOutput("mask")]
+
+        logger.debug("Running inference")
+        results = client.infer(model_name="bg_removal", inputs=inputs, outputs=outputs)
+
+        mask_np = np.squeeze(results.as_numpy("mask"))  # type: ignore
+        logger.debug(f"Mask shape: {mask_np.shape}")
+
+        output_img = post_process_mask(mask_np, input_img)
+        logger.debug("Background removed")
+
+        buffer = io.BytesIO()
+        output_img.save(buffer, format="PNG")
+        buffer.seek(0)
+        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        return BackgroundRemovalResult(image=base64_image)
+    except Exception as e:
+        logger.exception(f"Background removal failed: {str(e)}")
+        raise
+
+
 app = Litestar(
-    route_handlers=[infer_depth_pro],
-    request_max_body_size=100 * 1024 * 1024  # 100MB max request size
+    route_handlers=[infer_depth_pro, infer_bg_removal],
+    request_max_body_size=100 * 1024 * 1024,
 )
