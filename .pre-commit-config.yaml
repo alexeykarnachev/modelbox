@@ -26,4 +26,3 @@ repos:
           - types-setuptools
           - types-pillow
         exclude: ^tests/
-
