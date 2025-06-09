@@ -3,9 +3,15 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
-    libjpeg-dev \
-    zlib1g-dev \
-    git \
+    software-properties-common \
+    build-essential \
+    g++ \
+    ffmpeg \
+    libgl1-mesa-dev \
+    libegl1 \
+    libopengl0 \
+    libglx-mesa0 \
+    mesa-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
