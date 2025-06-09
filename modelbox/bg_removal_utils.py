@@ -21,12 +21,9 @@ def post_process_mask(mask_np, input_img):
         (input_img.width, input_img.height), resample=Image.Resampling.BILINEAR
     )
     mask_np = np.array(mask_img)
-    if mask_np.max() > 0:  # Avoid division by zero
+    if mask_np.max() > 0:
         mask_np = (
             (mask_np - mask_np.min()) / (mask_np.max() - mask_np.min() + 1e-6) * 255
         )
     mask_np = mask_np.astype(np.uint8)
-    result_img = input_img.copy()
-    result_img.putalpha(Image.fromarray(mask_np))
-
-    return result_img
+    return Image.fromarray(mask_np, mode="L")

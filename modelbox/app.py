@@ -33,6 +33,10 @@ class BackgroundRemovalResult(BaseModel):
     image: str
 
 
+class BackgroundRemovalVideoResult(BaseModel):
+    video: str
+
+
 class ImageRequest(BaseModel):
     image: UploadFile
 
@@ -124,7 +128,7 @@ async def infer_bg_removal(
         logger.debug(f"Mask shape: {mask_np.shape}")
 
         output_img = post_process_mask(mask_np, input_img)
-        logger.debug("Background removed")
+        logger.debug("Background mask processed")
 
         buffer = io.BytesIO()
         output_img.save(buffer, format="PNG")
@@ -146,36 +150,31 @@ async def infer_depth_pro_video(
     cap = None
     out = None
     try:
-        # Read video file
         video_data = await data.video.read()
 
-        # Save video data to a temporary file
         temp_dir = Path(tempfile.gettempdir())
         temp_input_file = temp_dir / f"video_input_{int(time.time() * 1000)}.mp4"
-        with open(temp_input_file, "wb") as f:
+        with temp_input_file.open("wb") as f:
             f.write(video_data)
 
-        # Initialize video capture with the temporary file
         cap = cv2.VideoCapture(str(temp_input_file))
         if not cap.isOpened():
             logger.error("Failed to open video")
             raise ValueError("Invalid video file")
 
-        # Get video properties
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
         logger.debug(f"Video properties: {frame_width}x{frame_height}, {fps} fps")
 
-        # Initialize output video writer with a temporary file
         temp_output_file = temp_dir / f"video_output_{int(time.time() * 1000)}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
         out = cv2.VideoWriter(
-            str(temp_output_file),  # Filename as string
-            fourcc,  # Fourcc code
-            fps,  # Frames per second
-            (frame_width, frame_height),  # Frame size as tuple (width, height)
-            True,  # isColor=True for color output
+            str(temp_output_file),
+            fourcc,
+            fps,
+            (frame_width, frame_height),
+            True,
         )
         if not out.isOpened():
             logger.error("Failed to initialize VideoWriter")
@@ -197,14 +196,11 @@ async def infer_depth_pro_video(
             frame_count += 1
             logger.debug(f"Processing frame {frame_count}")
 
-            # Convert OpenCV frame (BGR) to PIL Image (RGB)
             pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-            # Prepare input for model
             input_img, input_img_np = depth_pro_utils.prepare_input_image(pil_image)
             logger.debug(f"Input image prepared: {input_img_np.shape}")
 
-            # Set up Triton inputs and outputs
             inputs = [grpcclient.InferInput("images", input_img_np.shape, "FP16")]
             inputs[0].set_data_from_numpy(input_img_np)
             outputs = [
@@ -212,36 +208,28 @@ async def infer_depth_pro_video(
                 grpcclient.InferRequestedOutput("f_px"),
             ]
 
-            # Run inference
             results = client.infer(
                 model_name="depth_pro", inputs=inputs, outputs=outputs
             )
 
-            # Process outputs
             output_depth_np = np.squeeze(results.as_numpy("depth"))  # type: ignore
             output_f_px_np = np.squeeze(results.as_numpy("f_px"))  # type: ignore
             logger.debug(
                 f"Depth shape: {output_depth_np.shape}, Focal: {output_f_px_np}"
             )
 
-            # Post-process depth map
             output_img = depth_pro_utils.post_process_depthmap(
                 output_depth_np, input_img
             )
 
-            # Convert PIL Image back to OpenCV format (BGR)
             output_frame = cv2.cvtColor(np.array(output_img), cv2.COLOR_RGB2BGR)
-
-            # Write frame to output video
             out.write(output_frame)
             f_px.append(float(output_f_px_np))
 
-        # Release resources
         cap.release()
         out.release()
 
-        # Read the output video file and encode as base64
-        with open(temp_output_file, "rb") as f:
+        with temp_output_file.open("rb") as f:
             base64_video = base64.b64encode(f.read()).decode("utf-8")
         logger.debug(f"Processed {frame_count} frames")
 
@@ -251,21 +239,122 @@ async def infer_depth_pro_video(
         logger.exception(f"Video depth processing failed: {e}")
         raise
     finally:
-        # Clean up resources
         if cap is not None:
             cap.release()
+
         if out is not None:
             out.release()
-        # Remove temporary files
+
         for temp_file in [temp_input_file, temp_output_file]:
             if temp_file and temp_file.exists():
-                try:
-                    temp_file.unlink()
-                except Exception as e:
-                    logger.warning(f"Failed to delete temporary file {temp_file}: {e}")
+                temp_file.unlink()
+
+
+@post("/infer_bg_removal_video", media_type="application/json")
+async def infer_bg_removal_video(
+    data: VideoRequest = _body_multipart,
+) -> BackgroundRemovalVideoResult:
+    logger.debug("Received video file for background removal")
+    temp_input_file = None
+    temp_output_file = None
+    cap = None
+    out = None
+    try:
+        video_data = await data.video.read()
+
+        temp_dir = Path(tempfile.gettempdir())
+        temp_input_file = temp_dir / f"video_input_bg_{int(time.time() * 1000)}.mp4"
+        with temp_input_file.open("wb") as f:
+            f.write(video_data)
+
+        cap = cv2.VideoCapture(str(temp_input_file))
+        if not cap.isOpened():
+            logger.error("Failed to open video")
+            raise ValueError("Invalid video file")
+
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        logger.debug(f"Video properties: {frame_width}x{frame_height}, {fps} fps")
+
+        temp_output_file = temp_dir / f"video_output_bg_{int(time.time() * 1000)}.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
+        out = cv2.VideoWriter(
+            str(temp_output_file),
+            fourcc,
+            fps,
+            (frame_width, frame_height),
+            False,
+        )
+        if not out.isOpened():
+            logger.error("Failed to initialize VideoWriter")
+            raise ValueError("Failed to initialize video writer")
+
+        client = grpcclient.InferenceServerClient(
+            url=settings.triton_url, verbose=False
+        )
+        logger.debug(f"Connected to Triton at {settings.triton_url}")
+
+        frame_count = 0
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            frame_count += 1
+            logger.debug(f"Processing frame {frame_count}")
+
+            pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+            input_img, input_img_np = bg_removal_utils.prepare_input_image(pil_image)
+            logger.debug(f"Input image prepared: {input_img_np.shape}")
+
+            inputs = [grpcclient.InferInput("input", input_img_np.shape, "FP32")]
+            inputs[0].set_data_from_numpy(input_img_np)
+            outputs = [grpcclient.InferRequestedOutput("mask")]
+
+            results = client.infer(
+                model_name="bg_removal", inputs=inputs, outputs=outputs
+            )
+
+            mask_np = np.squeeze(results.as_numpy("mask"))  # type: ignore
+            logger.debug(f"Mask shape: {mask_np.shape}")
+
+            output_img = post_process_mask(mask_np, input_img)
+            output_frame = np.array(output_img)
+            out.write(output_frame)
+
+        cap.release()
+        out.release()
+
+        with temp_output_file.open("rb") as f:
+            base64_video = base64.b64encode(f.read()).decode("utf-8")
+        logger.debug(f"Processed {frame_count} frames")
+
+        return BackgroundRemovalVideoResult(video=base64_video)
+
+    except Exception as e:
+        logger.exception(f"Video background removal failed: {e}")
+        raise
+    finally:
+        if cap is not None:
+            cap.release()
+
+        if out is not None:
+            out.release()
+
+        for temp_file in [temp_input_file, temp_output_file]:
+            if temp_file and temp_file.exists():
+                temp_file.unlink()
 
 
 app = Litestar(
-    route_handlers=[infer_depth_pro, infer_bg_removal, infer_depth_pro_video],
+    route_handlers=[
+        infer_depth_pro,
+        infer_bg_removal,
+        infer_depth_pro_video,
+        infer_bg_removal_video,
+    ],
     request_max_body_size=100 * 1024 * 1024,
 )
