@@ -8,13 +8,13 @@ requires-python = ">=3.12"
 dependencies = [
     "typer>=0.15.2",
     "tritonclient[all]>=2.55.0",
-    "litestar>=2.15.1",
     "pydantic-settings>=2.8.1",
     "uvicorn>=0.34.0",
     "loguru>=0.7.3",
     "pillow>=11.1.0",
     "transformers>=4.51.3",
     "opencv-python>=4.11.0.86",
+    "fastapi>=0.115.12",
 ]
 
 [build-system]
