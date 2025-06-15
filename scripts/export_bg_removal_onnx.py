@@ -41,18 +41,16 @@ def export_to_onnx(
 
         def forward(self, images):
             result = self.model(images)
-            # Return only the mask
-            return result[0][0]
+            mask = result[0][0]
+            return mask.reshape(-1, 1, 1024, 1024)
 
     wrapper_model = ModelWrapper(model)
 
     # --------------------------------------------------------------------
     # Export model
     typer.echo(f"Exporting model to {onnx_file_path}")
-    # Sample input for export (batch_size, channels, height, width)
     input_tensor = torch.randn(1, 3, 1024, 1024, device=device)
 
-    # Export to ONNX
     torch.onnx.export(
         wrapper_model,
         input_tensor,
@@ -62,7 +60,6 @@ def export_to_onnx(
         opset_version=17,
         do_constant_folding=True,
     )
-
     typer.echo(f"Model exported successfully to {onnx_file_path}")
 
 

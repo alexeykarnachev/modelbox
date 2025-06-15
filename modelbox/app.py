@@ -9,13 +9,11 @@ from modelbox.utils import base64_to_image, image_to_base64
 app = FastAPI(max_request_body_size=100 * 1024 * 1024)
 
 
-class ImageToImageRequest(BaseModel):
-    image_base64: str
-    model_name: ImageToImageModelName
+class MediaModelRequest(BaseModel):
+    src: str
+    result: str
 
-
-class ImageToImageResult(BaseModel):
-    image_base64: str
+    model_name: MediaModelName
 
 
 @app.get("/image_to_image")
