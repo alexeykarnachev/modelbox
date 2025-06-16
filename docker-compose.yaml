@@ -36,6 +36,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8228:8228"
+    volumes:
+      - ${HOME}/.local/share/modelbox:/root/.local/share/modelbox
     depends_on:
       - triton-server
     restart: unless-stopped

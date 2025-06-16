@@ -17,6 +17,9 @@ dependencies = [
     "fastapi>=0.115.12",
     "aiofiles>=24.1.0",
     "more-itertools>=10.7.0",
+    "platformdirs>=4.3.7",
+    "python-multipart>=0.0.20",
+    "python-magic>=0.4.27",
 ]
 
 [build-system]

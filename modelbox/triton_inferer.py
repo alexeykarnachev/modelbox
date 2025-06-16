@@ -1,68 +1,17 @@
-import base64
-import mimetypes
-import shutil
-import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal, cast
 
-import aiofiles
-import aiohttp
 import cv2
+import magic
 import numpy as np
 import tritonclient.grpc as grpcclient
+from loguru import logger
 from numpy._typing import NDArray
 from PIL import Image
 from pydantic import BaseModel
 
-mimetypes.init()
-
 MediaModelName = Literal["depth_pro", "bg_removal"]
-
-
-async def save_media(src: str, output_dir: Path) -> Path:
-    """
-    Args:
-        src: Source of the media, which can be:
-            - A local file path: 'path/to/image.jpg'
-            - A remote URL: 'https://example.com/image.jpg'
-            - A base64-encoded string: 'data:image/jpeg;base64,/9j/4AAQSk...'
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = str(int(time.time() * 1000))
-    output_file_path = None
-
-    # Base64 string
-    if src.startswith("data:"):
-        header, encoded = src.split(",", 1)
-        media_type = header.split(";")[0].split(":")[1]
-        extension = media_type.split("/")[-1]
-        data = base64.b64decode(encoded)
-
-        output_file_path = Path(output_dir) / f"{timestamp}.{extension}"
-        async with aiofiles.open(output_file_path, "wb") as f:
-            await f.write(data)
-
-    # Remote URL
-    elif src.startswith("http://") or src.startswith("https://"):
-        async with aiohttp.ClientSession() as session, session.get(src) as response:
-            response.raise_for_status()
-
-            content_type = response.headers.get("content-type", "")
-            extension = content_type.split("/")[-1] if "/" in content_type else "bin"
-
-            output_file_path = Path(output_dir) / f"{timestamp}.{extension}"
-            async with aiofiles.open(output_file_path, "wb") as f:
-                async for chunk in response.content.iter_any():
-                    await f.write(chunk)
-
-    # Local file path
-    else:
-        src_file_path = Path(src)
-        output_file_path = Path(output_dir) / f"{timestamp}.{src_file_path.name}"
-        shutil.copy2(src_file_path, output_file_path)
-
-    return output_file_path
 
 
 def _iterate_video_frames(cap: cv2.VideoCapture) -> Iterator[np.ndarray]:
@@ -154,14 +103,6 @@ class TritonInferer:
         output_file_path: Path,
         model_name: MediaModelName,
     ):
-        """
-        Process a media file (image or video) with the specified model.
-
-        Args:
-            input_file_path: Path to the input media file.
-            output_file_path: Path where the output will be saved.
-            model_name: Either 'bg_removal' or 'depth_pro'.
-        """
         self._ensure_model_io(model_name)
 
         # ----------------------------------------------------------------
@@ -218,7 +159,8 @@ class TritonInferer:
 
         # ----------------------------------------------------------------
         # Process based on file type
-        file_type = mimetypes.guess_type(input_file_path)[0] or ""
+        mime = magic.Magic(mime=True)
+        file_type = mime.from_file(str(input_file_path))
         if not file_type:
             raise ValueError(f"Failed to determine file type: {input_file_path}")
 
@@ -226,6 +168,8 @@ class TritonInferer:
 
         if file_type.startswith("image"):
             input_image_np = cv2.imread(str(input_file_path))
+            if input_image_np is None:
+                raise ValueError(f"Failed to read image: {input_file_path}")
             original_size = input_image_np.shape[:2]  # (height, width)
 
             input_frame = preproc_fn(input_image_np)[np.newaxis, ...]
@@ -234,10 +178,12 @@ class TritonInferer:
             output_frame = postproc_fn(output_data[0][0])
             output_image = Image.fromarray(output_frame)
 
-            output_image.save(output_file_path)
+            output_image.save(output_file_path, format="PNG")
 
         elif file_type.startswith("video"):
             cap = cv2.VideoCapture(str(input_file_path))
+            if not cap.isOpened():
+                raise ValueError(f"Failed to read video: {input_file_path}")
             original_size = (
                 int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
                 int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -245,9 +191,10 @@ class TritonInferer:
             fps = int(cap.get(cv2.CAP_PROP_FPS))
             n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+            temp_output_path = output_file_path.with_suffix(".mp4")
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
             out = cv2.VideoWriter(
-                str(output_file_path), fourcc, fps, (original_size[1], original_size[0])
+                str(temp_output_path), fourcc, fps, (original_size[1], original_size[0])
             )
 
             for i, input_frame in enumerate(_iterate_video_frames(cap)):
@@ -259,7 +206,11 @@ class TritonInferer:
 
                 out.write(output_frame)
 
-                print(f"Frames processed: {i + 1}/{n_frames}")
+                n_frames_processed = i + 1
+                if n_frames_processed % 10 == 0:
+                    logger.debug(f"Frames processed: {n_frames_processed}/{n_frames}")
+
+            temp_output_path.rename(output_file_path)
 
             cap.release()
             out.release()

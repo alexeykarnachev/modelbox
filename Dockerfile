@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     build-essential \
     g++ \
+    libmagic1 \
     ffmpeg \
     libgl1-mesa-dev \
     libegl1 \
