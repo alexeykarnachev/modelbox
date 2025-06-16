@@ -1,15 +1,17 @@
+import mimetypes
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal, cast
 
 import cv2
-import magic
 import numpy as np
 import tritonclient.grpc as grpcclient
 from loguru import logger
 from numpy._typing import NDArray
 from PIL import Image
 from pydantic import BaseModel
+
+mimetypes.init()
 
 MediaModelName = Literal["depth_pro", "bg_removal"]
 
@@ -159,10 +161,7 @@ class TritonInferer:
 
         # ----------------------------------------------------------------
         # Process based on file type
-        mime = magic.Magic(mime=True)
-        file_type = mime.from_file(str(input_file_path))
-        if not file_type:
-            raise ValueError(f"Failed to determine file type: {input_file_path}")
+        file_type = mimetypes.guess_type(input_file_path)[0] or ""
 
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -191,10 +190,9 @@ class TritonInferer:
             fps = int(cap.get(cv2.CAP_PROP_FPS))
             n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-            temp_output_path = output_file_path.with_suffix(".mp4")
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
             out = cv2.VideoWriter(
-                str(temp_output_path), fourcc, fps, (original_size[1], original_size[0])
+                str(output_file_path), fourcc, fps, (original_size[1], original_size[0])
             )
 
             for i, input_frame in enumerate(_iterate_video_frames(cap)):
@@ -208,9 +206,7 @@ class TritonInferer:
 
                 n_frames_processed = i + 1
                 if n_frames_processed % 10 == 0:
-                    logger.debug(f"Frames processed: {n_frames_processed}/{n_frames}")
-
-            temp_output_path.rename(output_file_path)
+                    logger.debug(f"Frames processed: {i + 1}/{n_frames}")
 
             cap.release()
             out.release()
