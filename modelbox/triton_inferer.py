@@ -157,7 +157,7 @@ class TritonInferer:
                 output_norm = (output_resized - output_resized.min()) / (
                     output_resized.max() - output_resized.min() + 1e-8
                 )
-                return 1.0 - (output_norm * 255).astype(np.uint8)
+                return 1 - (output_norm * 255).astype(np.uint8)
 
         # ----------------------------------------------------------------
         # Process based on file type
