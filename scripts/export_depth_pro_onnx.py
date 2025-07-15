@@ -84,6 +84,8 @@ def export_to_onnx(
     ),
     cuda: bool = typer.Option(False, help="Use cuda device for export"),
 ):
+    onnx_file_path.parent.mkdir(parents=True, exist_ok=True)
+
     device = torch.device("cuda" if cuda else "cpu")
     pt_file_path = Path(pt_file_path)
 
@@ -128,7 +130,7 @@ def export_to_onnx(
         fov_encoder=fov_encoder,
     )
 
-    state_dict = torch.load(pt_file_path, map_location="cpu")
+    state_dict = torch.load(pt_file_path, map_location=device)
     model.load_state_dict(state_dict=state_dict, strict=True)
 
     model = model.to(device)

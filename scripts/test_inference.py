@@ -16,7 +16,6 @@ def main():
         for file_name in file_names:
             input_file_path = _THID_DIR / "data" / file_name
             output_file_path = _THID_DIR / "data" / f"{model_name}_{file_name}"
-            output_file_path = output_file_path.with_suffix("")
 
             print(f"Inferencing model {model_name} on file {input_file_path}")
             inferer.infer_media_model(
