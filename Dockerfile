@@ -19,7 +19,6 @@ COPY pyproject.toml uv.lock ./
 RUN pip install uv && uv sync --no-dev
 
 COPY modelbox ./modelbox/
-COPY .env .
 
 ENV PYTHONPATH=/app
 
