@@ -1,6 +1,7 @@
 # ModelBox
 
 A local image processing server that hosts machine learning models for background removal and depth estimation.
+Mainly developed to support AI filters for my GLSL shaders editor [ShaderBox](https://where-is-your-keyboard.itch.io/shaderbox)
 
 ## Requirements
 
